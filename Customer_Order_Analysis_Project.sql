@@ -1,0 +1,194 @@
+SELECT 
+  DATE_FORMAT(MIN(order_date), '%Y-%b') AS order_date,
+  SUM(sales_amount) AS total_sales,
+  COUNT(DISTINCT customer_key) AS total_customers,
+  SUM(quantity) AS total_quantity
+FROM gold_fact_sales
+WHERE order_date IS NOT NULL
+GROUP BY YEAR(order_date), MONTH(order_date)
+ORDER BY YEAR(order_date), MONTH(order_date);
+-- Change Over Time
+-- This show monthly and yearly sales data including total customers and quantity sold.
+
+SELECT
+    order_date,
+    total_sales,
+    SUM(total_sales) OVER (ORDER BY order_date) AS running_total_sales,
+    AVG(avg_price) OVER (ORDER BY order_date) AS moving_avg_price
+FROM (
+    SELECT
+        DATE_FORMAT(order_date, '%Y') AS order_date,
+        SUM(sales_amount) AS total_sales,
+        AVG(price) AS avg_price
+    FROM gold_fact_sales
+    WHERE order_date IS NOT NULL
+    GROUP BY DATE_FORMAT(order_date, '%Y')
+) t
+ORDER BY order_date;
+-- Cumulative Analysis
+-- This query provides a running total of sales and moving average of the price by each year.
+
+WITH yearly_product_sales AS (
+    SELECT
+        YEAR(f.order_date) AS order_year,
+        p.product_name,
+        SUM(f.sales_amount) AS current_sales
+    FROM CRM.gold_fact_sales f
+    LEFT JOIN CRM.gold_dim_products p
+        ON f.product_key = p.product_key
+    WHERE f.order_date IS NOT NULL
+    GROUP BY YEAR(f.order_date), p.product_name
+) 
+SELECT 
+    order_year,
+    product_name,
+    current_sales,
+    AVG(current_sales) OVER (PARTITION BY product_name) AS avg_sales_per_product,
+    current_sales - AVG(current_sales) OVER (PARTITION BY product_name) AS sales_deviation,
+    CASE WHEN current_sales - AVG(current_sales) OVER (PARTITION BY product_name) > 0 THEN 'Above Average'
+        WHEN current_sales - AVG(current_sales) OVER (PARTITION BY product_name) < 0 THEN 'Below Average'
+        ELSE 'Average' END avg_change,
+    LAG(current_sales) OVER(PARTITION BY product_name ORDER BY order_year) AS previous_year_sales,
+    current_sales - LAG(current_sales) OVER(PARTITION BY product_name ORDER BY order_year) AS sales_change,
+    CASE WHEN current_sales - LAG(current_sales) OVER(PARTITION BY product_name ORDER BY order_year) > 0 THEN 'Increase'
+        WHEN current_sales - LAG(current_sales) OVER(PARTITION BY product_name ORDER BY order_year) < 0 THEN 'Decrease'
+        ELSE 'No Change' END sales_trend
+FROM yearly_product_sales
+ORDER BY product_name, order_year;
+-- Performannce Analysis 
+-- This query analyzes yearly sales performance for each product, comparing current sales to average sales and previous year sales.
+
+WITH category_sales AS (
+    SELECT
+        p.category,
+        SUM(f.sales_amount) AS total_sales
+    FROM CRM.gold_fact_sales f
+    LEFT JOIN CRM.gold_dim_products p
+        ON f.product_key = p.product_key
+    GROUP BY p.category
+)
+SELECT
+    category,
+    total_sales,
+    SUM(total_sales) OVER () AS overall_sales,
+    CONCAT(ROUND((total_sales / SUM(total_sales) OVER ()) * 100,2),'%') AS sales_percentage
+FROM category_sales
+ORDER BY total_sales DESC;
+-- Category Sales Distribution
+-- This query calculates total sales per product category and their percentage contribution to overall sales.
+
+WITH product_segments AS (
+    SELECT
+        product_key,
+        product_name,
+        cost,
+        CASE WHEN cost < 100 THEN 'Below 100'
+            WHEN cost BETWEEN 100 AND 500 THEN '100-500'
+            WHEN cost BETWEEN 501 AND 1000 THEN '501-1000'
+            ELSE 'Above 1000'
+        END AS cost_range
+    FROM CRM.gold_dim_products
+)
+SELECT
+    cost_range,
+    COUNT(product_key) AS total_products
+FROM product_segments
+GROUP BY cost_range    
+ORDER BY total_products DESC;
+-- Data Segmentation
+-- This query segments products based on their cost into defined ranges and counts the number of products in range
+
+WITH customer_spending AS (
+    SELECT 
+        c.customer_key,
+        SUM(f.sales_amount) AS total_spending,
+        MIN(f.order_date) AS first_order_date,
+        MAX(f.order_date) AS last_order_date,
+        CAST(DATEDIFF(MAX(f.order_date), MIN(f.order_date)) / 30 AS UNSIGNED) AS customer_lifespan
+    FROM gold_fact_sales f
+    LEFT JOIN gold_dim_customers c
+        ON f.customer_key = c.customer_key
+    GROUP BY c.customer_key
+)
+SELECT
+    CASE 
+        WHEN customer_lifespan >= 12 AND total_spending > 5000 THEN 'VIP'
+        WHEN customer_lifespan >= 12 AND total_spending <= 5000 THEN 'Regular'
+        ELSE 'New'
+    END AS customer_segment,
+    COUNT(*) AS customer_count,
+    CONCAT('$',ROUND(AVG(total_spending),2)) AS avg_spending
+FROM customer_spending
+GROUP BY customer_segment;
+-- Grouping Customer Spending Habbits
+-- This query categorizes customers into segments based on their total spending and lifespan.
+
+CREATE VIEW CRM.report_customers AS
+WITH base_query AS (
+    SELECT 
+        f.order_number,
+        f.product_key,
+        f.order_date,
+        f.sales_amount,
+        f.quantity,
+        c.customer_key,
+        c.customer_number,
+        CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+        ROUND(DATEDIFF(CURRENT_DATE, c.birthdate) / 365, 0) AS age
+    FROM gold_fact_sales f 
+    LEFT JOIN gold_dim_customers c 
+        ON f.customer_key = c.customer_key
+    WHERE f.order_date IS NOT NULL
+), customer_aggregation AS ( 
+    SELECT 
+        customer_key,
+        customer_number,
+        customer_name,
+        age,
+        COUNT(DISTINCT order_number) AS total_orders,
+        SUM(sales_amount) AS total_sales,
+        SUM(quantity) AS total_quantity,
+        COUNT(DISTINCT product_key) AS total_products,
+        MAX(order_date) AS last_order_date,
+        CAST(DATEDIFF(MAX(order_date), MIN(order_date)) / 30 AS UNSIGNED) AS customer_lifespan
+    FROM base_query
+    GROUP BY customer_key, customer_number, customer_name, age
+    ORDER BY total_sales DESC
+)
+SELECT 
+    customer_key,
+    customer_number,
+    customer_name,
+    age,
+    CASE
+        WHEN age < 20 THEN 'Under 20' 
+        WHEN age BETWEEN 20 AND 29 THEN '20-29' 
+        WHEN age BETWEEN 30 AND 39 THEN '30-39' 
+        WHEN age BETWEEN 40 AND 49 THEN '40-49' 
+        ELSE '50 and above'
+    END AS age_group,
+    CASE 
+        WHEN customer_lifespan > 12 AND total_sales > 5000 THEN 'VIP' 
+        WHEN customer_lifespan >= 12 AND total_sales <= 5000 THEN 'Regular'
+        ELSE 'New'
+    END AS customer_segment,
+    total_orders,
+    total_sales,
+    total_quantity,
+    total_products,
+    last_order_date,
+    ROUND(DATEDIFF(CURRENT_DATE, last_order_date) / 30, 0) AS recency_months,
+    customer_lifespan,
+    CASE
+        WHEN total_sales = 0 THEN 0
+        ELSE
+            CONCAT('$',ROUND(total_sales / total_orders))
+    END avg_order_value,
+    CASE 
+        WHEN customer_lifespan = 0 THEN total_sales
+        ELSE
+            CONCAT('$',ROUND(total_sales / customer_lifespan))
+    END avg_monthly_spend
+FROM customer_aggregation;
+-- Customer Report View
+-- This view aggregates customer data including total orders, sales, quantity, and segments customers by age
