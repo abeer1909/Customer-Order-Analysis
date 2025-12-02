@@ -1,11 +1,11 @@
-Project Overview
+# Project Overview
 
 This project involves a comprehensive analysis of customer orders, sales performance, and product trends using SQL. The goal is to derive actionable insights from the gold_fact_sales, gold_dim_products, and gold_dim_customers tables. The analysis covers various aspects such as time-series sales trends, cumulative performance, product sales distribution, and detailed customer segmentation.
 
 The SQL scripts provided here answer critical business questions regarding growth, customer retention, and inventory value distribution.
 
 ![](https://private-user-images.githubusercontent.com/87649792/521471061-3747e74c-e5bd-4be0-9e61-5bda34917995.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjQ2OTY3NzAsIm5iZiI6MTc2NDY5NjQ3MCwicGF0aCI6Ii84NzY0OTc5Mi81MjE0NzEwNjEtMzc0N2U3NGMtZTViZC00YmUwLTllNjEtNWJkYTM0OTE3OTk1LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTEyMDIlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUxMjAyVDE3Mjc1MFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTA4NmFmZmIzNjk5NTBiOWYxMjY2NGFlOWZlOWMzYWYzN2MwMGZlOTU1ZDdiOTUxN2Y0YmFlNDQ4ZTdhNWI0ODMmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.2pUnfbMCNAGhItACnyMu-gbo2o6CEwFm6fBGkdDW5_k)
-Questions and Answers
+# Questions and Answers
 
 Q1. How can we analyze the monthly and yearly sales trends, including the total number of customers and quantity sold?
 
